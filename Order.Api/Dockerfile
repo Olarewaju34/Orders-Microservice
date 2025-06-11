@@ -31,4 +31,7 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 ENV MONGODB_HOST=localhost
 ENV MONGODB_PORT=27017
+ENV MONGODB_DATABASE=OrderDatabase
+ENV UsersMicroserviceName=localhost
+ENV UsersMicroservicePort=8080
 ENTRYPOINT ["dotnet", "Order.Api.dll"]

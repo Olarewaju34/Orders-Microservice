@@ -2,6 +2,7 @@
 using FluentValidation;
 using MongoDB.Driver;
 using Order.BusinessLogic.DTO;
+using Order.BusinessLogic.HttpClients;
 using Order.DataAccessLayer.Entites;
 using Order.DataAccessLayer.Repository;
 
@@ -15,8 +16,9 @@ namespace Order.BusinessLogic.Services
         private readonly IValidator<OrderItemUpdateRequest> _orderItemUpdateRequestValidator;
         private readonly IMapper _mapper;
         private readonly IOrdersRepository _ordersRepository;
+        private readonly UserMicroServiceClient _userMicroServiceClient;
 
-        public OrderService(IOrdersRepository ordersRepository, IMapper mapper, IValidator<OrderAddRequest> orderAddRequestValidator, IValidator<OrderItemAddRequest> orderItemAddRequestValidator, IValidator<OrderUpdateRequest> orderUpdateRequestValidator, IValidator<OrderItemUpdateRequest> orderItemUpdateRequestValidator)
+        public OrderService(IOrdersRepository ordersRepository, IMapper mapper, IValidator<OrderAddRequest> orderAddRequestValidator, IValidator<OrderItemAddRequest> orderItemAddRequestValidator, IValidator<OrderUpdateRequest> orderUpdateRequestValidator, IValidator<OrderItemUpdateRequest> orderItemUpdateRequestValidator, UserMicroServiceClient userMicroServiceClient)
         {
             _orderAddRequestValidator = orderAddRequestValidator;
             _orderItemAddRequestValidator = orderItemAddRequestValidator;
@@ -24,9 +26,11 @@ namespace Order.BusinessLogic.Services
             _orderItemUpdateRequestValidator = orderItemUpdateRequestValidator;
             _mapper = mapper;
             _ordersRepository = ordersRepository;
+            _userMicroServiceClient = userMicroServiceClient;
         }
         public async Task<OrderResponse> AddOrder(OrderAddRequest request)
         {
+
             if (request == null)
             {
                 throw new ArgumentNullException(nameof(request));
@@ -34,15 +38,20 @@ namespace Order.BusinessLogic.Services
             var validationResult = await _orderAddRequestValidator.ValidateAsync(request);
             if (!validationResult.IsValid)
             {
-                var errors = string.Join(",", validationResult.Errors.Select(temp=>temp.ErrorMessage));
+                var errors = string.Join(",", validationResult.Errors.Select(temp => temp.ErrorMessage));
                 throw new ArgumentException(errors);
+            }
+            var user = await _userMicroServiceClient.GetUserByIserId(request.UserId);
+            if (user is null)
+            {
+                throw new ArgumentException("Invalid User Id");
             }
             var orderInput = _mapper.Map<Orders>(request);
             foreach (var orders in orderInput.OrderItems)
             {
                 orders.TotalPrice = orders.Quantity * orders.Price;
             }
-            orderInput.TotalBill = orderInput.OrderItems.Sum(temp=>temp.TotalPrice);
+            orderInput.TotalBill = orderInput.OrderItems.Sum(temp => temp.TotalPrice);
             var newOrder = await _ordersRepository.AddOrder(orderInput);
 
             if (newOrder == null)
@@ -58,7 +67,7 @@ namespace Order.BusinessLogic.Services
 
         public async Task<bool> DeleteOrder(Guid id)
         {
-           FilterDefinition<Orders> filter = Builders<Orders>.Filter.Eq(temp => temp.OrderId ,id);  
+            FilterDefinition<Orders> filter = Builders<Orders>.Filter.Eq(temp => temp.OrderId, id);
             var orderExist = await _ordersRepository.GetOrderByCondition(filter);
             if (orderExist is null)
             {
@@ -109,7 +118,11 @@ namespace Order.BusinessLogic.Services
                 string errors = string.Join(",", validationResult.Errors.Select(temp => temp.ErrorMessage));
                 throw new InvalidOperationException(errors);
             }
-
+            var user = await _userMicroServiceClient.GetUserByIserId(request.UserId);
+            if (user is null)
+            {
+                throw new ArgumentException("Invalid User Id");
+            }
             var updateOrder = _mapper.Map<Orders>(request);
             foreach (var orders in updateOrder.OrderItems)
             {

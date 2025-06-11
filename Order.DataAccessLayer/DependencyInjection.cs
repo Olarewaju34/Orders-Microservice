@@ -22,7 +22,7 @@ namespace Order.DataAccessLayer
             {
                 var client = provider.GetRequiredService<IMongoClient>();
 
-                return client.GetDatabase("OrderDatabase");
+                return client.GetDatabase(Environment.GetEnvironmentVariable("MONGODB_DATABASE"));
             });
          services.AddScoped<IOrdersRepository, OrderRepository>();
             return services;
